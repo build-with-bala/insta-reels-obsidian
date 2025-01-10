@@ -47,3 +47,21 @@ def test_load_config_defaults(tmp_path):
     assert config.llm_provider == "openai"
     assert config.server_port == 7890
     assert len(config.default_tags) == 9
+
+
+def test_load_config_invalid_provider(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        "vault_path: /tmp/vault\nllm_api_key: sk-test\nllm_provider: gemini\n"
+    )
+    with pytest.raises(ConfigError, match="Invalid llm_provider"):
+        load_config(str(config_file))
+
+
+def test_load_config_invalid_port(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        "vault_path: /tmp/vault\nllm_api_key: sk-test\nserver_port: 80\n"
+    )
+    with pytest.raises(ConfigError, match="server_port"):
+        load_config(str(config_file))
