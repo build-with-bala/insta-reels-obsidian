@@ -1,8 +1,13 @@
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
 import yaml
+
+logger = logging.getLogger(__name__)
+
+VALID_PROVIDERS = ("openai", "anthropic")
 
 
 class ConfigError(Exception):
@@ -41,10 +46,24 @@ def load_config(path: str) -> Config:
         if field_name not in data:
             raise ConfigError(f"Missing required field: {field_name}")
 
+    provider = data.get("llm_provider", "openai")
+    if provider not in VALID_PROVIDERS:
+        raise ConfigError(
+            f"Invalid llm_provider '{provider}'. Must be one of: {VALID_PROVIDERS}"
+        )
+
+    port = int(data.get("server_port", 7890))
+    if not (1024 <= port <= 65535):
+        raise ConfigError(f"server_port must be between 1024 and 65535, got {port}")
+
+    vault_path = Path(data["vault_path"])
+    if not vault_path.exists():
+        logger.warning(f"Vault path does not exist yet: {vault_path}")
+
     return Config(
         vault_path=str(data["vault_path"]),
         llm_api_key=str(data["llm_api_key"]),
-        llm_provider=data.get("llm_provider", "openai"),
+        llm_provider=provider,
         default_tags=data.get("default_tags", Config.default_tags),
-        server_port=int(data.get("server_port", 7890)),
+        server_port=port,
     )
