@@ -82,3 +82,21 @@ class ReelDB:
                 "UPDATE reels SET tags = ?, status = ? WHERE id = ?",
                 (json.dumps(tags), status, reel_id),
             )
+
+    def get_retry_candidates(self, limit: int = 50) -> list[dict]:
+        """Get reels that failed metadata fetch or tagging, for retry."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM reels WHERE status IN ('fetch-failed', 'untagged') "
+                "ORDER BY created_at LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_stats(self) -> dict:
+        """Return counts by status for monitoring."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) as count FROM reels GROUP BY status"
+            ).fetchall()
+            return {row["status"]: row["count"] for row in rows}
