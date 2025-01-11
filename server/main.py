@@ -1,9 +1,9 @@
 import logging
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from server.config import Config, load_config
 from server.db import ReelDB
@@ -18,6 +18,13 @@ class ReelRequest(BaseModel):
     url: str
     timestamp: str
     userNote: Optional[str] = None
+
+    @field_validator("url")
+    @classmethod
+    def url_must_be_instagram(cls, v):
+        if "instagram.com" not in v:
+            raise ValueError("URL must be an Instagram link")
+        return v
 
 
 def create_app(config: Config = None, db_path: str = None) -> FastAPI:
@@ -40,7 +47,12 @@ def create_app(config: Config = None, db_path: str = None) -> FastAPI:
 
     @app.get("/status")
     def status():
-        return {"status": "ok", "vault_path": config.vault_path}
+        stats = db.get_stats()
+        return {
+            "status": "ok",
+            "vault_path": config.vault_path,
+            "reel_counts": stats,
+        }
 
     @app.post("/reel")
     async def receive_reel(req: ReelRequest):
