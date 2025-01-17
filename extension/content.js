@@ -40,15 +40,25 @@
 
   function isInTargetChat() {
     if (!settings.chatName) return false;
-    const headerEls = document.querySelectorAll(
-      '[role="heading"], [class*="thread"] [dir="auto"], header [dir="auto"]'
-    );
-    for (const el of headerEls) {
-      if (
-        el.textContent.trim().toLowerCase() ===
-        settings.chatName.toLowerCase()
-      ) {
-        return true;
+    const target = settings.chatName.toLowerCase();
+
+    // Try multiple selectors since Instagram's DOM structure changes
+    const selectors = [
+      '[role="heading"]',
+      'header [dir="auto"]',
+      '[class*="thread"] [dir="auto"]',
+      // Newer IG web layout
+      'div[role="main"] header span',
+      'section > header span[dir="auto"]',
+    ];
+
+    for (const selector of selectors) {
+      const els = document.querySelectorAll(selector);
+      for (const el of els) {
+        const text = el.textContent.trim().toLowerCase();
+        if (text === target || text.includes(target)) {
+          return true;
+        }
       }
     }
     return false;
