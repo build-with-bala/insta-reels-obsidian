@@ -12,7 +12,9 @@ def _build_prompt(caption: str, creator: str, default_tags: list[str]) -> str:
     )
     return (
         f"Categorize this Instagram reel into 2-5 tags.\n"
-        f"Suggested tags: {tag_list}. You may create new relevant ones.\n"
+        f"Preferred tags: {tag_list}. Reuse these when they fit.\n"
+        f"Only create a new tag if none of the above apply.\n"
+        f"Keep tags short (1-2 words), lowercase, no spaces (use hyphens).\n\n"
         f"Creator: @{creator}\n"
         f"Caption: {caption}\n\n"
         f"Return ONLY a JSON array of lowercase strings, e.g. [\"recipe\", \"italian\"]."
@@ -68,9 +70,12 @@ async def auto_tag_reel(
 
     try:
         if provider == "anthropic":
-            return await _call_anthropic(prompt, api_key)
+            tags = await _call_anthropic(prompt, api_key)
         else:
-            return await _call_openai(prompt, api_key)
+            tags = await _call_openai(prompt, api_key)
+
+        # Normalize: lowercase, strip whitespace, replace spaces with hyphens
+        return [t.lower().strip().replace(" ", "-") for t in tags if t.strip()]
     except Exception as e:
         logger.warning(f"Auto-tagging failed: {e}")
         return None
