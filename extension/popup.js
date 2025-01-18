@@ -37,7 +37,10 @@ async function checkServer(url, statusEl) {
   try {
     const resp = await fetch(`${url}/status`);
     if (resp.ok) {
-      statusEl.textContent = "Server connected";
+      const data = await resp.json();
+      const counts = data.reel_counts || {};
+      const total = Object.values(counts).reduce((a, b) => a + b, 0);
+      statusEl.textContent = `Server connected (${total} reels saved)`;
       statusEl.className = "status connected";
     } else {
       statusEl.textContent = "Server error";
