@@ -3,7 +3,10 @@
   "name": "Insta Reels to Obsidian",
   "version": "1.0.0",
   "description": "Captures Instagram reels from DMs and saves them to Obsidian",
-  "permissions": ["storage"],
+  "permissions": ["storage", "activeTab"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "host_permissions": [
     "https://www.instagram.com/*",
     "http://localhost:7890/*"
