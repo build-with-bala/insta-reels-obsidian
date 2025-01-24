@@ -19,14 +19,14 @@ class Config:
     vault_path: str
     llm_api_key: str
     llm_provider: str = "openai"
-    default_tags: List[str] = field(
-        default_factory=lambda: [
-            "funny", "recipe", "travel", "fitness", "tech",
-            "music", "fashion", "motivation", "education",
-        ]
-    )
+    default_tags: List[str] = field(default_factory=lambda: list(DEFAULT_TAGS))
     server_port: int = 7890
 
+
+DEFAULT_TAGS = [
+    "funny", "recipe", "travel", "fitness", "tech",
+    "music", "fashion", "motivation", "education",
+]
 
 REQUIRED_FIELDS = ["vault_path", "llm_api_key"]
 
@@ -64,6 +64,6 @@ def load_config(path: str) -> Config:
         vault_path=str(data["vault_path"]),
         llm_api_key=str(data["llm_api_key"]),
         llm_provider=provider,
-        default_tags=data.get("default_tags", Config.default_tags),
+        default_tags=data.get("default_tags", DEFAULT_TAGS),
         server_port=port,
     )
