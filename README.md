@@ -79,6 +79,16 @@ The server uses an LLM (OpenAI or Anthropic) to automatically categorize reels i
 
 If the local server is not running when you share a reel, the extension queues it locally and retries every 30 seconds until the server is available.
 
+## Configuration
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `vault_path` | (required) | Absolute path to your Obsidian vault |
+| `llm_api_key` | (required) | OpenAI or Anthropic API key |
+| `llm_provider` | `openai` | `openai` or `anthropic` |
+| `default_tags` | 9 categories | Preferred tag categories for the AI |
+| `server_port` | `7890` | Local server port (1024-65535) |
+
 ## Running Tests
 
 ```bash
@@ -91,3 +101,7 @@ python -m pytest server/tests/ -v
 - **AI:** OpenAI GPT-4o-mini or Anthropic Claude Haiku
 - **Extension:** Chrome Manifest V3, vanilla JS
 - **Notes:** Obsidian-compatible Markdown with YAML frontmatter
+
+## License
+
+MIT

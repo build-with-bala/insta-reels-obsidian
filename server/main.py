@@ -132,6 +132,16 @@ def create_app(config: Config = None, db_path: str = None) -> FastAPI:
 
 if __name__ == "__main__":
     import uvicorn
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
     cfg = load_config("config.yaml")
+    logger.info(f"Starting server on port {cfg.server_port}")
+    logger.info(f"Vault path: {cfg.vault_path}")
+    logger.info(f"LLM provider: {cfg.llm_provider}")
+
     application = create_app(cfg)
     uvicorn.run(application, host="0.0.0.0", port=cfg.server_port)
