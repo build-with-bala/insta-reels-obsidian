@@ -71,3 +71,33 @@ def test_update_reel_tags(db):
 
 def test_get_nonexistent_reel(db):
     assert db.get_reel("NOPE") is None
+
+
+def test_get_retry_candidates(db):
+    db.insert_reel(
+        reel_id="A", url="https://instagram.com/reel/A/",
+        timestamp="2025-01-24T10:00:00", status="fetch-failed",
+    )
+    db.insert_reel(
+        reel_id="B", url="https://instagram.com/reel/B/",
+        timestamp="2025-01-24T11:00:00", status="processed",
+    )
+    db.insert_reel(
+        reel_id="C", url="https://instagram.com/reel/C/",
+        timestamp="2025-01-24T12:00:00", status="untagged",
+    )
+    candidates = db.get_retry_candidates()
+    assert len(candidates) == 2
+    ids = [c["id"] for c in candidates]
+    assert "A" in ids
+    assert "C" in ids
+    assert "B" not in ids
+
+
+def test_get_stats(db):
+    db.insert_reel(reel_id="A", url="u", timestamp="t", status="processed")
+    db.insert_reel(reel_id="B", url="u", timestamp="t", status="processed")
+    db.insert_reel(reel_id="C", url="u", timestamp="t", status="untagged")
+    stats = db.get_stats()
+    assert stats["processed"] == 2
+    assert stats["untagged"] == 1
