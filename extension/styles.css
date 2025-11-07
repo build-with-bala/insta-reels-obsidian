@@ -1,0 +1,21 @@
+.insta-reels-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #4CAF50;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  z-index: 999999;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+
+.insta-reels-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
