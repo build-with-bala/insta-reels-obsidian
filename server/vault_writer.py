@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import shutil
 from pathlib import Path
@@ -42,6 +43,35 @@ class VaultWriter:
         self._write_log(entry)
         self._write_daily(reel["timestamp"], entry)
         self._write_tags(reel.get("tags") or [], entry)
+
+    def replace_reel(self, reel: dict, old_tags: list[str] | None = None):
+        """Rewrite a reel's vault entries after a successful retry.
+
+        Removes any existing blocks for this reel URL from Log.md, the
+        reel's Daily note, and the old tag files (e.g. fetch-failed /
+        untagged), then writes the updated entry as usual.
+        """
+        url = reel["url"]
+        self._remove_entry(self.base_dir / "Log.md", url)
+        date = reel["timestamp"][:10]
+        self._remove_entry(self.base_dir / "Daily" / f"{date}.md", url)
+        for tag in old_tags or []:
+            tag_clean = tag.lower().replace(" ", "-")
+            self._remove_entry(self.base_dir / "Tags" / f"{tag_clean}.md", url)
+        self.write_reel(reel)
+
+    def _remove_entry(self, path: Path, url: str):
+        """Remove every entry block referencing `url` from a vault file."""
+        if not path.exists():
+            return
+        content = path.read_text()
+        pattern = re.compile(
+            r"### \[Reel by @[^\]]*\]\(" + re.escape(url) + r"\).*?---\n\n?",
+            re.DOTALL,
+        )
+        new_content = pattern.sub("", content)
+        if new_content != content:
+            self._atomic_write(path, new_content)
 
     def _write_log(self, entry: str):
         log_path = self.base_dir / "Log.md"
