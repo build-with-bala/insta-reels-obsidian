@@ -1,0 +1,53 @@
+# Copy this file to config.yaml and edit the values.
+#
+#   cp config.example.yaml config.yaml
+#
+# SECRETS: prefer keeping your LLM API key OUT of config.yaml. Export the
+# INSTA_REELS_LLM_API_KEY environment variable instead (see .env.example);
+# it takes precedence over llm_api_key below.
+
+# Absolute path to your Obsidian vault. Must already exist and be writable.
+vault_path: /path/to/your/obsidian/vault
+
+# OpenAI or Anthropic API key. Recommended: leave this placeholder and export
+# INSTA_REELS_LLM_API_KEY instead so the key never lands in a config file.
+llm_api_key: your-api-key-here
+
+# LLM used for auto-tagging: "openai" (gpt-4o-mini) or "anthropic" (Claude Haiku).
+llm_provider: openai
+
+# Preferred tag categories the LLM should reuse when they fit.
+default_tags:
+  - funny
+  - recipe
+  - travel
+  - fitness
+  - tech
+  - music
+  - fashion
+  - motivation
+  - education
+
+# Local server port (1024-65535).
+server_port: 7890
+
+# Bind address. Default 127.0.0.1 keeps the server local-only (recommended).
+# Set to 0.0.0.0 only if you really want to expose it to your LAN.
+server_host: 127.0.0.1
+
+# --- Instagram authentication for metadata fetch (yt-dlp) -------------------
+# Instagram blocks most anonymous metadata requests, so configure ONE of the
+# options below. Without cookies, reels are still saved to the vault with a
+# fetch-failed marker and are retried later.
+
+# Read Instagram cookies straight from a local browser profile.
+# Examples: "chrome", "safari", "firefox", "edge", "chrome:Profile 1"
+# cookies_from_browser: chrome
+
+# OR: path to a Netscape-format cookies file exported from your browser.
+# cookie_file: /path/to/instagram-cookies.txt
+
+# --- Retry pipeline ----------------------------------------------------------
+# How often (in minutes) the server retries fetch-failed and untagged reels.
+# Set to 0 to disable the periodic loop (you can still POST /retry manually).
+retry_interval_minutes: 10
