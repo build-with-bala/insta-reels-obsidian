@@ -1,9 +1,57 @@
 import json
 import logging
+import re
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+MAX_TAGS = 5
+
+_CODE_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\s*|\s*```$", re.MULTILINE)
+_JSON_ARRAY_RE = re.compile(r"\[.*?\]", re.DOTALL)
+
+
+def _parse_tags(content: str) -> list[str]:
+    """Extract a list of tag strings from an LLM completion.
+
+    Tolerates markdown code fences, surrounding prose, and a
+    {"tags": [...]} object instead of a bare array. Raises ValueError if no
+    list of strings can be recovered (callers treat that as a soft failure).
+    """
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("empty LLM response")
+
+    text = _CODE_FENCE_RE.sub("", content).strip()
+
+    candidates = []
+    try:
+        candidates.append(json.loads(text))
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    if not candidates:
+        # Fall back to the first JSON array embedded in prose.
+        for match in _JSON_ARRAY_RE.finditer(text):
+            try:
+                candidates.append(json.loads(match.group(0)))
+                break
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+    if not candidates:
+        raise ValueError(f"no JSON array found in LLM response: {content[:200]!r}")
+
+    parsed = candidates[0]
+    if isinstance(parsed, dict):
+        parsed = parsed.get("tags")
+    if not isinstance(parsed, list):
+        raise ValueError(f"LLM response is not a list of tags: {content[:200]!r}")
+
+    tags = [t for t in parsed if isinstance(t, str) and t.strip()]
+    if not tags:
+        raise ValueError(f"LLM response contained no usable tags: {content[:200]!r}")
+    return tags[:MAX_TAGS]
 
 
 def _build_prompt(caption: str, creator: str, default_tags: list[str]) -> str:
@@ -35,7 +83,7 @@ async def _call_openai(prompt: str, api_key: str) -> list[str]:
         )
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
-        return json.loads(content)
+        return _parse_tags(content)
 
 
 async def _call_anthropic(prompt: str, api_key: str) -> list[str]:
@@ -56,7 +104,7 @@ async def _call_anthropic(prompt: str, api_key: str) -> list[str]:
         )
         resp.raise_for_status()
         content = resp.json()["content"][0]["text"]
-        return json.loads(content)
+        return _parse_tags(content)
 
 
 async def auto_tag_reel(
