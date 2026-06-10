@@ -85,6 +85,19 @@
       margin-top: 8px;
     }
     button:hover { background: #43a047; }
+    #pendingList {
+      font-size: 12px;
+      padding-left: 16px;
+      margin: 4px 0;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    #pendingList li.muted {
+      color: #888;
+      list-style: none;
+      margin-left: -16px;
+    }
+    #retryResult:empty { display: none; }
   </style>
 </head>
 <body>
@@ -107,6 +120,12 @@
   <button id="save">Save Settings</button>
 
   <div id="status" class="status" style="margin-top: 12px;"></div>
+
+  <label style="margin-top: 12px;">Queue</label>
+  <div id="serverPending" class="status"></div>
+  <ul id="pendingList"></ul>
+  <button id="retryBtn">Retry failed now</button>
+  <div id="retryResult" class="status" style="margin-top: 8px;"></div>
 
   <script src="popup.js"></script>
 </body>
