@@ -25,7 +25,18 @@ def extract_reel_id(url: str) -> str | None:
     return match.group(1) if match else None
 
 
-def fetch_reel_metadata(url: str) -> ReelMetadata | None:
+def fetch_reel_metadata(
+    url: str,
+    cookies_from_browser: str | None = None,
+    cookie_file: str | None = None,
+) -> ReelMetadata | None:
+    """Fetch reel metadata via yt-dlp.
+
+    Instagram blocks most anonymous metadata requests, so callers should
+    supply either `cookies_from_browser` (e.g. "chrome", "safari", or
+    "chrome:Profile 1") or `cookie_file` (path to a Netscape-format cookies
+    file). Returns None on any failure so the caller can degrade gracefully.
+    """
     reel_id = extract_reel_id(url)
     if not reel_id:
         return None
@@ -36,6 +47,13 @@ def fetch_reel_metadata(url: str) -> ReelMetadata | None:
         "skip_download": True,
         "extract_flat": False,
     }
+    if cookie_file:
+        opts["cookiefile"] = str(cookie_file)
+    if cookies_from_browser:
+        # yt-dlp expects a tuple: (browser, profile, keyring, container).
+        # Accept "chrome" or "chrome:Profile 1" style values.
+        parts = [p.strip() for p in str(cookies_from_browser).split(":", 1)]
+        opts["cookiesfrombrowser"] = tuple(p for p in parts if p)
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
