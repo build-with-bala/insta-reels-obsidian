@@ -76,6 +76,25 @@ class ReelDB:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def update_reel_metadata(
+        self,
+        reel_id: str,
+        creator_username: str = None,
+        creator_display_name: str = None,
+        caption: str = None,
+        thumbnail_url: str = None,
+    ):
+        """Fill in metadata for a reel that initially failed to fetch."""
+        with self._connect() as conn:
+            conn.execute(
+                """UPDATE reels
+                   SET creator_username = ?, creator_display_name = ?,
+                       caption = ?, thumbnail_url = ?
+                   WHERE id = ?""",
+                (creator_username, creator_display_name,
+                 caption, thumbnail_url, reel_id),
+            )
+
     def update_reel_tags(self, reel_id: str, tags: list, status: str):
         with self._connect() as conn:
             conn.execute(
