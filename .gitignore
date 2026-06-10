@@ -4,7 +4,10 @@ __pycache__/
 .pytest_cache/
 *.db
 .env
+config.yaml
+.DS_Store
 venv/
+.venv*/
 node_modules/
 *.egg-info/
 dist/
