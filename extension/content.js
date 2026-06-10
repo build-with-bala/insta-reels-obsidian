@@ -1,8 +1,11 @@
 (() => {
   const REEL_PATTERN = /instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/;
   const RETRY_INTERVAL = 30000;
+  const SENT_REELS_LIMIT = 500;
   const sentReels = new Set();
   let pendingQueue = [];
+  let captureActive = false;
+  let lastPathname = location.pathname;
   let settings = {
     enabled: false,
     chatName: "",
@@ -21,10 +24,59 @@
   }
 
   chrome.storage.onChanged.addListener((changes) => {
-    if (changes.enabled) settings.enabled = changes.enabled.newValue;
+    if (changes.enabled) {
+      settings.enabled = changes.enabled.newValue;
+      if (settings.enabled && captureActive) scanExistingMessages();
+    }
     if (changes.chatName) settings.chatName = changes.chatName.newValue;
     if (changes.serverUrl) settings.serverUrl = changes.serverUrl.newValue;
+    if (changes.sentReels) {
+      // Merge ids written by other tabs so we don't re-send their reels.
+      for (const id of changes.sentReels.newValue || []) sentReels.add(id);
+    }
   });
+
+  // --- SPA navigation handling -------------------------------------------
+  // Instagram is a single-page app: the script is injected on any
+  // instagram.com page and capture activates only while the user is on a
+  // /direct/ (DM) route. Route changes are detected by hooking
+  // history.pushState/replaceState, listening for popstate, and as a
+  // fallback re-checking the URL on DOM mutations.
+
+  function isDirectPath() {
+    return location.pathname.startsWith("/direct");
+  }
+
+  function updateCaptureState() {
+    const shouldBeActive = isDirectPath();
+    if (shouldBeActive && !captureActive) {
+      captureActive = true;
+      scanExistingMessages();
+    } else if (!shouldBeActive && captureActive) {
+      captureActive = false;
+    }
+  }
+
+  function handleUrlChange() {
+    if (location.pathname === lastPathname) return;
+    lastPathname = location.pathname;
+    updateCaptureState();
+  }
+
+  function hookHistoryNavigation() {
+    for (const method of ["pushState", "replaceState"]) {
+      const original = history[method];
+      if (typeof original !== "function") continue;
+      history[method] = function (...args) {
+        const result = original.apply(this, args);
+        handleUrlChange();
+        return result;
+      };
+    }
+    window.addEventListener("popstate", handleUrlChange);
+  }
+
+  // ------------------------------------------------------------------------
 
   function showToast(message) {
     let toast = document.querySelector(".insta-reels-toast");
@@ -105,6 +157,41 @@
     return null;
   }
 
+  async function markReelSent(reelId) {
+    sentReels.add(reelId);
+    try {
+      // Re-read storage so concurrent tabs' writes aren't clobbered.
+      const stored = await chrome.storage.local.get(["sentReels"]);
+      const ids = stored.sentReels || [];
+      if (!ids.includes(reelId)) ids.push(reelId);
+      await chrome.storage.local.set({
+        sentReels: ids.slice(-SENT_REELS_LIMIT),
+      });
+    } catch {
+      // Storage unavailable; the in-memory set still dedupes this session.
+    }
+  }
+
+  async function persistPendingQueue() {
+    try {
+      // Merge with what other tabs may have queued, drop anything already
+      // sent, and dedupe by reel id before writing back.
+      const stored = await chrome.storage.local.get(["pendingReels"]);
+      const merged = [];
+      const seen = new Set();
+      for (const reel of [...(stored.pendingReels || []), ...pendingQueue]) {
+        if (!reel || !reel.reelId) continue;
+        if (seen.has(reel.reelId) || sentReels.has(reel.reelId)) continue;
+        seen.add(reel.reelId);
+        merged.push(reel);
+      }
+      pendingQueue = merged;
+      await chrome.storage.local.set({ pendingReels: merged });
+    } catch {
+      // Keep the in-memory queue; the next retry cycle persists again.
+    }
+  }
+
   async function sendReel(reelData) {
     try {
       const resp = await fetch(`${settings.serverUrl}/reel`, {
@@ -117,8 +204,14 @@
         }),
       });
       if (resp.ok) {
-        sentReels.add(reelData.reelId);
-        showToast("Reel captured!");
+        let status = null;
+        try {
+          status = (await resp.json()).status;
+        } catch {
+          // Non-JSON body; treat as a normal capture.
+        }
+        await markReelSent(reelData.reelId);
+        showToast(status === "duplicate" ? "Already saved" : "Reel captured!");
         return true;
       }
     } catch {
@@ -127,19 +220,18 @@
     return false;
   }
 
-  function queueReel(reelData) {
-    if (!pendingQueue.find((r) => r.reelId === reelData.reelId)) {
-      pendingQueue.push(reelData);
-      chrome.storage.local.set({ pendingReels: pendingQueue });
-      showToast("Reel queued (server offline)");
-    }
+  async function queueReel(reelData) {
+    if (pendingQueue.find((r) => r.reelId === reelData.reelId)) return;
+    pendingQueue.push(reelData);
+    await persistPendingQueue();
+    showToast("Reel queued (server offline)");
   }
 
   async function processReel(reelData) {
     if (sentReels.has(reelData.reelId)) return;
     const sent = await sendReel(reelData);
     if (!sent) {
-      queueReel(reelData);
+      await queueReel(reelData);
     }
   }
 
@@ -151,12 +243,25 @@
       if (!sent) remaining.push(reel);
     }
     pendingQueue = remaining;
-    chrome.storage.local.set({ pendingReels: pendingQueue });
+    await persistPendingQueue();
+  }
+
+  function scanExistingMessages() {
+    if (!settings.enabled || !isInTargetChat()) return;
+    const reelUrls = extractReelUrls(document.body);
+    for (const reel of reelUrls) {
+      processReel({ url: reel.url, reelId: reel.reelId, userNote: null });
+    }
   }
 
   function startObserver() {
     const observer = new MutationObserver((mutations) => {
-      if (!settings.enabled || !isInTargetChat()) return;
+      // Fallback SPA-navigation detection: Instagram re-renders on route
+      // changes, so DOM mutations catch URL changes missed by the
+      // history hooks.
+      handleUrlChange();
+
+      if (!captureActive || !settings.enabled || !isInTargetChat()) return;
 
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
@@ -182,19 +287,19 @@
   async function init() {
     await loadSettings();
 
-    const stored = await chrome.storage.local.get(["pendingReels"]);
+    const stored = await chrome.storage.local.get([
+      "pendingReels",
+      "sentReels",
+    ]);
     pendingQueue = stored.pendingReels || [];
+    for (const id of stored.sentReels || []) sentReels.add(id);
 
+    hookHistoryNavigation();
     startObserver();
     setInterval(retryPending, RETRY_INTERVAL);
 
-    // Scan existing messages on page load
-    if (settings.enabled && isInTargetChat()) {
-      const reelUrls = extractReelUrls(document.body);
-      for (const reel of reelUrls) {
-        processReel({ url: reel.url, reelId: reel.reelId, userNote: null });
-      }
-    }
+    // Activate capture (and scan existing messages) if we loaded on /direct/
+    updateCaptureState();
   }
 
   init();
